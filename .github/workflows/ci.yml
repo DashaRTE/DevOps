@@ -1,11 +1,11 @@
 name: Node.js CI/CD Pipeline
 
-# Тригери запускати при пуші або pull request у гілку main
+# Тригери: запускати при пуші або pull request у гілку main
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
   pull_request:
-    branches: ["main"]
+    branches: [ "main" ]
 
 jobs:
   # Етап 1: Тестування та Лінтинг
@@ -18,8 +18,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: '20'
+          cache: 'npm' # Прискорює встановлення залежностей
 
       - name: Install dependencies
         # Використовуємо npm ci замість npm install для надійнішої збірки
@@ -38,9 +38,9 @@ jobs:
     # Цей етап чекає на успішне завершення попереднього (test-and-lint)
     needs: test-and-lint
     runs-on: ubuntu-latest
-    # Виконується тільки якщо це push у гілку main (не для pull request)
+    # Виконується ТІЛЬКИ якщо це push у гілку main (не для pull request)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -57,11 +57,7 @@ jobs:
         with:
           context: .
           push: true
+          # Тегуємо образ двома тегами: latest та унікальним хешем коміту
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/express-api:latest
             ${{ secrets.DOCKER_USERNAME }}/express-api:${{ github.sha }}
-
-      # Continuous Deployment
-      - name: Deploy to Render
-        # Викликаємо Webhook Render, щоб він підтягнув новий образ
-        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
