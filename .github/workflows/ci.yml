@@ -1,0 +1,67 @@
+name: Node.js CI/CD Pipeline
+
+# Тригери запускати при пуші або pull request у гілку main
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  # Етап 1: Тестування та Лінтинг
+  test-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        # Використовуємо npm ci замість npm install для надійнішої збірки
+        run: npm ci
+
+      - name: Run Linter
+        # Впаде, якщо є синтаксичні помилки
+        run: npm run lint
+
+      - name: Run Tests
+        # Впаде, якщо тести не пройдуть
+        run: npm test
+
+  # Етап 2: Збірка та публікація Docker-образу (лише при мержі/пуші в main)
+  build-and-push:
+    # Цей етап чекає на успішне завершення попереднього (test-and-lint)
+    needs: test-and-lint
+    runs-on: ubuntu-latest
+    # Виконується тільки якщо це push у гілку main (не для pull request)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          # Секрети будуть братися з налаштувань GitHub
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/express-api:latest
+            ${{ secrets.DOCKER_USERNAME }}/express-api:${{ github.sha }}
+
+      # Continuous Deployment
+      - name: Deploy to Render
+        # Викликаємо Webhook Render, щоб він підтягнув новий образ
+        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
